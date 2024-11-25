@@ -1,0 +1,63 @@
+service: lambda-interview
+frameworkVersion: "3"
+
+plugins:
+  - serverless-esbuild
+  - serverless-esbuild-layers
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, "develop"}
+  timeout: 30
+  iam:
+    role: LambdaFunctionRole
+  apiName: Lambda-API-${self:provider.stage}
+
+package:
+  individually: true
+
+custom:
+  esbuild:
+    plugins: esbuild-plugins.js
+    exclude:
+      - "*"
+
+layers:
+  DependencyLib:
+    path: ".serverless"
+    name: lambda-interview-dependency-layer-${self:provider.stage}
+    description: node_modules
+    compatibleRuntimes:
+      - nodejs20.x
+
+functions:
+  handler:
+    handler: ./index.handler
+    logRetentionInDays: 30
+    layers:
+      - { Ref: DependencyLibLambdaLayer }
+    events:
+      - http:
+          path: /index
+          method: GET
+          cors: true
+
+resources:
+  Resources:
+    LambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: LambdaFunctionRole-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
